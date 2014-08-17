@@ -1,0 +1,83 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+#.IGNORE:
+
+AVX = yes
+OMP = yes
+CUDA_ARCH = sm_35
+
+
+CC = nvcc --compiler-bindir `which CC`
+LINK = nvcc --compiler-bindir `which CC`
+
+CCFLAGS = -m64 -O3 -I./ -DMPICH_IGNORE_CXX_SEEK -I$(KOKKOSPATH)/ -I$(KOKKOSPATH)/include -I$(MPIPATH)/include -arch=$(CUDA_ARCH) -maxrregcount=64 -x cu -Xcompiler -fPIC -restrict  
+LINKFLAGS = -m64 -O3
+
+USRLIB = 
+
+ifeq ($(CUDA), yes)
+CCFLAGS += -DDEVICE=2 -DKOKKOS_HAVE_CUDA
+endif
+
+ifeq ($(OMP),yes)
+CCFLAGS += -DKOKKOS_HAVE_OPENMP -Xcompiler -fopenmp
+LINKFLAGS += -Xcompiler -fopenmp 
+else
+CCFLAGS += -DKOKKOS_HAVE_PTHREAD 
+USRLIB += -lpthread
+endif
+
+ifeq ($(RED_PREC), yes)
+CCFLAGS += --use_fast_math
+endif
+
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g -G -DKOKKOSARRAY_EXPRESSION_CHECK -DENABLE_TRACEBACK
+LINKFLAGS += -g
+endif
+
+ifeq ($(PAD), 3)
+CCFLAGS += -DPAD=3
+LINKFLAGS += -DPAD=3
+endif
+
+ifeq ($(PAD), 4)
+CCFLAGS += -DPAD=4
+LINKFLAGS += -DPAD=4
+endif
+
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1
+LINKFLAGS += -DPRECISION=1
+else
+CCFLAGS += -DPRECISION=2
+LINKFLAGS += -DPRECISION=2
+endif
+
+ifeq ($(LIBRT),yes)
+CCFLAGS += -DKOKKOS_USE_LIBRT -DPREC_TIMER
+USRLIB += -lrt
+endif
+
+SYSLIB =	-lcuda -lcudart $(LIBMPI) $(INTELLIB) $(LIBIB)
+SIZE =		size
+
+# Link rule
+
+$(EXE):	$(OBJ)
+	$(LINK) $(LINKFLAGS) $(OBJ) $(USRLIB) $(SYSLIB) -o $(EXE)
+	$(SIZE) $(EXE)
+
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -c $<
+
+.SUFFIXES: .cu
+.cu.o:
+	$(CC) $(CCFLAGS) -c $<
+  
+# Individual dependencies
+
+$(OBJ): $(INC)

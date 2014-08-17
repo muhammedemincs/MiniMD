@@ -1,0 +1,90 @@
+# Default Makefile: just call 'make -f Makefile.default'
+SHELL = /bin/sh
+
+#Path to kokkos core source directory (i.e. trilinos/packages/kokkos/core/src)
+KOKKOSPATH = $(shell cd kokkos; pwd;)
+HWLOCPATH = ./
+
+#Compiler and Linker
+CC =    mpicxx
+LINK =    mpicxx
+
+# MiniMD Files
+
+SRC =	ljs.cpp input.cpp integrate.cpp atom.cpp force_lj.cpp neighbor.cpp thermo.cpp comm.cpp timer.cpp output.cpp setup.cpp force_eam.cpp  
+INC = ljs.h atom.h force.h neighbor.h thermo.h timer.h comm.h integrate.h threadData.h variant.h types.h force_eam.h force_lj.h
+
+#Kokkos Files
+
+#Kokkos Files which are always needed
+KOKKOS_SRC = $(shell cd $(KOKKOSPATH)/impl; ls *.cpp;)
+KOKKOS_CPY = $(shell ls $(KOKKOSPATH)/impl/*.cpp)
+KOKKOS_INC = $(shell ls $(KOKKOSPATH)/impl/*.hpp)
+KOKKOS_INC += $(shell ls $(KOKKOSPATH)/*.hpp)
+
+#Kokkos Files for OpenMP backend (don't include togehter with PThreads files)
+KOKKOS_SRC += $(shell cd $(KOKKOSPATH)/OpenMP; ls *.cpp;)
+KOKKOS_CPY += $(shell ls $(KOKKOSPATH)/OpenMP/*.cpp)
+KOKKOS_INC += $(shell ls $(KOKKOSPATH)/OpenMP/*.hpp)
+KOKKOS_CCFLAGS = -DKOKKOS_HAVE_OPENMP -fopenmp
+KOKKOS_LINKFLAGS = -fopenmp
+
+#Kokkos Files for PThreads backend (don't include together with OpenMP files)
+#KOKKOS_SRC += $(shell cd $(KOKKOSPATH)/Threads; ls *.cpp;)
+#KOKKOS_CPY += $(shell ls $(KOKKOSPATH)/Threads/*.cpp)
+#KOKKOS_INC += $(shell ls $(KOKKOSPATH)/Threads/*.hpp)
+#KOKKOS_CCFLAGS = -DKOKKOS_HAVE_PTHREADS
+#KOKKOS_LINKFLAGS = 
+#KOKKOS_CCFLAGS += -DKOKKOS_HAVE_HWLOC -I$(HWLOCPATH)/include
+#KOKKOS_LINKFLAGS += -L$(HWLOCPATH)/lib
+
+
+	
+# Definitions
+
+ROOT =	miniMD
+EXE =	$(ROOT)
+OBJ =	$(SRC:.cpp=.o) $(KOKKOS_SRC:.cpp=.o) 
+
+CCFLAGS = -O3 -DMPICH_IGNORE_CXX_SEEK -DDEVICE=1 -I$(KOKKOSPATH)/ -I./ -g -mavx -DUSE_SIMD $(KOKKOS_CCFLAGS) 
+LINKFLAGS = -O3 -g -mavx -fopenmp $(KOKKOS_LINKFLAGS)
+USRLIB =  
+SYSLIB =  
+
+#First copy all files, then call the same makefile again with the actual build target
+#Can't be done in single pass, because the actual compilation rule for .o files, need the 
+#copied cpp files to be in place. 
+
+copy: 
+	@mkdir -p Obj_default
+	@echo '' > Obj_default/KokkosCore_config.h
+	@cp -p $(SRC) $(INC) Obj_default
+	@cp -p $(KOKKOS_CPY) Obj_default
+	@cp Makefile.default Obj_default/Makefile
+	@cd Obj_default; $(MAKE) all
+  
+all: $(OBJ)
+	$(LINK) $(OBJ) $(LINKFLAGS) $(USRLIB) $(SYSLIB) -o ../$(EXE)
+  
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -c $<
+
+# Individual dependencies
+
+$(OBJ): $(INC)
+
+# Clean
+clean:
+	rm -r Obj_*
+	
+# Test
+
+scope=0
+input=lj
+halfneigh=0
+path=""
+test:
+	bash run_tests ${scope} ${input} ${halfneigh} ${path} 
+  

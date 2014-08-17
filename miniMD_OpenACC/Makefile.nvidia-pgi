@@ -1,0 +1,66 @@
+# Makefile for mpicxx compiler
+
+SHELL = /bin/sh
+#.IGNORE:
+
+# System-specific settings
+
+CC =		mpicxx
+CCFLAGS =	-g -acc -ta=nvidia:cc3x --restrict -O3 -Minfo=accel -DMPICH_IGNORE_CXX_SEEK 
+CCFLAGS +=      -DUSELAYOUTLEFT
+#The Energy calculation crashes currently with both PGI 13.9 and PGI 13.10
+#The compiler reports that it generated a reduction
+#CCFLAGS += -DENABLE_EV_CALCULATION
+LINK =		mpicxx
+LINKFLAGS =	-g -acc -ta=nvidia:cc3x -O3 
+USRLIB = 	-lrt
+SYSLIB =	-L/home/projects/pgi/13.10.0/linux86-64/13.10/lib 
+SIZE =		size
+
+# Check for AVX compile
+ifeq ($(AVX), yes)
+CCFLAGS += -mavx -DNOCHUNK
+LINKFLAGS += -mavx -DNOCHUNK
+endif
+
+ifeq ($(SIMD), yes)
+CCFLAGS += -DUSE_SIMD
+endif
+
+ifeq ($(ANSI_ALIAS), yes)
+CCFLAGS += -ansi-alias 
+LINKFLAGS += -ansi-alias
+endif
+
+#Check for PAD
+ifeq ($(PAD4), yes)
+CCFLAGS += -DPAD4 
+LINKFLAGS += -DPAD4 
+endif
+
+#Check for single precision
+ifeq ($(SP), yes)
+CCFLAGS += -DPRECISION=1 
+LINKFLAGS += -DPRECISION=1 
+endif
+
+#Check if debug on
+ifeq ($(DEBUG), yes)
+CCFLAGS += -g  
+LINKFLAGS += -g 
+endif
+
+# Link rule
+
+$(EXE):	$(OBJ)
+	$(LINK) $(LINKFLAGS) $(OBJ) $(USRLIB) $(SYSLIB) -o $(EXE)
+	$(SIZE) $(EXE)
+
+# Compilation rules
+
+.cpp.o:
+	$(CC) $(CCFLAGS) -c $*.cpp -o $*.o
+
+# Individual dependencies
+
+$(OBJ): $(INC)

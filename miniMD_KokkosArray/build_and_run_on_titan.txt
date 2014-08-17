@@ -1,0 +1,23 @@
+#Compiling no MPI paths necessary: just let it use cray compiler as host backend (both for kokkoslibrary and for building miniMD
+#CC = nvcc --compiler-bindir `which CC`
+#LINK = nvcc --compiler-bindir `which CC`
+
+module load cudatoolkit
+module switch PrgEnv-pgi PrgEnv-gnu
+module swap gcc/4.7.2 gcc/4.6.3
+module switch cray-mpich2 cray-mpich2/5.6.4
+cd kokkos
+./build.titan
+cd ..
+make titan -j 8
+#Running
+qsub -I -A mph010 -q debug -X -V -l nodes=4,walltime=30:00 -l gres=widow2%widow3
+setenv LD_LIBRARY_PATH ${CRAY_LD_LIBRARY_PATH}:${LD_LIBRARY_PATH}
+setenv MPICH_RDMA_ENABLED_CUDA 1
+cp miniMD_titan /tmp/work/USERNAME
+cp in.*.miniMD /tmp/work/USERNAME
+cd /tmp/work/USERNAME
+aprun -n4 -d 16 /tmp/work/USERNAME/miniMD_titan -s 60 --half_neigh 0 -i /tmp/work/USERNAME/in.lj.miniMD
+
+
+
